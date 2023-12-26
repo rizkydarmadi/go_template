@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 )
 
+var validate = validator.New()
+
 type User struct {
 	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name  string `json:"name" validate:"required"`
+	Email string `json:"email" validate:"email,required"`
 }
 
 // GetUsers returns a handler for fetching users from the database.
@@ -70,9 +74,18 @@ func GetUser(db *sql.DB) http.HandlerFunc {
 func CreateUser(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var u User
-		json.NewDecoder(r.Body).Decode(&u)
+		err := json.NewDecoder(r.Body).Decode(&u)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Validate the user struct
+		if err := validate.Struct(u); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		err := db.QueryRow("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id", u.Name, u.Email).Scan(&u.ID)
+		err = db.QueryRow("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id", u.Name, u.Email).Scan(&u.ID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -85,12 +98,29 @@ func CreateUser(db *sql.DB) http.HandlerFunc {
 func UpdateUser(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var u User
-		json.NewDecoder(r.Body).Decode(&u)
+		err := json.NewDecoder(r.Body).Decode(&u)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Validate the user struct
+		if err := validate.Struct(u); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
 		vars := mux.Vars(r)
 		id := vars["id"]
 
-		_, err := db.Exec("UPDATE users SET name = $1, email = $2 WHERE id = $3", u.Name, u.Email, id)
+		// Set the ID field
+		u.ID, err = strconv.Atoi(id)
+		if err != nil {
+			http.Error(w, "Invalid ID", http.StatusBadRequest)
+			return
+		}
+
+		_, err = db.Exec("UPDATE users SET name = $1, email = $2 WHERE id = $3", u.Name, u.Email, u.ID)
 
 		if err != nil {
 			log.Fatal(err)

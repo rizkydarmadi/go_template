@@ -25,7 +25,7 @@ func Routes() {
 	router.HandleFunc("/users/{id}", users.GetUser(db)).Methods("GET")
 	router.HandleFunc("/users", users.CreateUser(db)).Methods("POST")
 	router.HandleFunc("/users/{id}", users.UpdateUser(db)).Methods("PUT")
-	router.HandleFunc("users/{id}", users.DeleteUser(db)).Methods("DELETE")
+	router.HandleFunc("/users/{id}", users.DeleteUser(db)).Methods("DELETE")
 
 	//start server
 	router.Use(middleware.LoggingMiddleware)
